@@ -1,0 +1,24 @@
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  flex: 1;
+  min-height: 0;     /* lets the row shrink so the page never scrolls */
+  display: flex;     /* map on the left, sidebar on the right */
+}
+
+.map-pane {
+  flex: 1;           /* takes all the width the sidebar doesn't use */
+  min-width: 0;      /* lets the map shrink instead of overflowing */
+  position: relative;
+  overflow: hidden;   /* clips anything wider than the pane */
+  isolation: isolate; /* traps the map's z-indexes inside this pane */
+}
+
+.map-pane > * {
+  width: 100%;
+  height: 100%;
+}

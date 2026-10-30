@@ -1,0 +1,63 @@
+
+.sidebar {
+  position: relative; /* lets z-index apply */
+  z-index: 1;         /* keeps the sidebar above the map pane */
+  flex: 0 0 320px;   /* fixed width, never grows or shrinks */
+  height: 100%;
+  overflow-y: auto;  /* sidebar scrolls internally if it has many inputs */
+  padding: 1rem;
+  background: #f3f4f6;
+  border-left: 1px solid #d1d5db;
+}
+
+.sidebar-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+  background: #fff;
+  color: #111827;
+}
+
+.sidebar-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+.sidebar-heading {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+}
+
+.route-list {
+  list-style: none;   /* remove bullets; delete this line to keep them */
+  margin: 0;
+  padding: 0;
+}
+
+.route-list li {
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #111827;
+}
+
+.route-list li:hover {
+  background: #e5e7eb;
+}
+
+.route-input-button {
+  padding: 0.5rem 1rem;
+  margin: 0.2rem;
+  background-color: #00bcd4;
+  border: none;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
