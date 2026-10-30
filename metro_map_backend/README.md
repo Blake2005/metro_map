@@ -30,7 +30,6 @@ the in-memory snapshot store and in the SQLite database.
   the GeoJSON route line shapes (`load_route_shapes`).
 - `app/active_routes.py` – In-memory tracked-routes registry (`RoutesTracked`) plus the pydantic request
   schemas (`RouteListSchema`, `RouteSchema`) used by the tracked-route endpoints.
-- `poller_gtfs_bak.py` – Backup of an earlier GTFS-realtime based poller, kept for reference.
 
 ### Data flow
 
