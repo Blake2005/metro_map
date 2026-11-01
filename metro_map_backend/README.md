@@ -102,6 +102,28 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 The API is then available at `http://localhost:8000`. With `--reload` Uvicorn will restart the server
 when the code changes.
 
+### Running with Docker
+
+The backend can also be started through Docker using the compose file at the repository root.
+
+From the repository root run:
+
+```bash
+docker compose up --build backend
+```
+
+This builds the backend image (see `metro_map_backend/Dockerfile`) and starts the backend container, which runs
+uvicorn on `0.0.0.0:8000` with `--reload`.
+
+The API is then available at `http://localhost:8000`.
+
+To start the full stack (backend and frontend) instead, run `docker compose up --build` from the repository root (see
+the [root README](../README.md) for the full instructions).
+
+When running through Docker, the backend reads its configuration from environment variables / a `.env` file (see
+[Configuration](#configuration)); the `metro_map_backend/` directory is bind-mounted into the container by
+`docker-compose.yml`, so an existing `.env` file is picked up automatically.
+
 ## Frontend interaction
 
 The backend expects the frontend (see `metro_map_frontend`) to call the `/api/*` endpoints described above;

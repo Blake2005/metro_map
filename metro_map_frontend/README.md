@@ -72,6 +72,21 @@ npm run dev
 The dev server runs at `http://localhost:5173` and proxies `/api` requests to the backend configured in
 `vite.config.js` (default backend address `http://100.87.56.104:8000`).
 
+### Running with Docker
+
+From the repository root:
+
+```bash
+docker compose up --build
+```
+
+This builds and starts the backend and frontend containers defined in the root `docker-compose.yml`. The frontend
+dev server is then available at `http://localhost:5173` and proxies `/api` requests to the backend that the backend
+container serves at `http://localhost:8000`.
+
+When running through Docker Compose, make sure the `/api` proxy target in `vite.config.js` points at the backend
+service (e.g. `http://backend:8000`) so the frontend container can reach the backend container.
+
 ### Build
 
 ```bash

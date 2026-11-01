@@ -36,6 +36,41 @@ The web app consists of two parts:
 
 ## Getting started
 
+The app can be started in one of two ways: with Docker, using the compose file at the repository root, or locally
+without Docker.
+
+### Start the app with Docker
+
+Prerequisites: [Docker](https://docs.docker.com/get-docker/) and Docker Compose.
+
+From the repository root:
+
+```bash
+docker compose up --build
+```
+
+This builds the backend and frontend images and starts the services defined in [`docker-compose.yml`](docker-compose.yml):
+
+- Backend API: `http://localhost:8000`
+- Frontend: `http://localhost:5173`
+
+Once the containers are running, open `http://localhost:5173` in the browser to use the app.
+
+To run the stack in the background:
+
+```bash
+docker compose up --build -d
+docker compose down
+```
+
+The compose setup runs the services in development mode: the backend source directory is bind-mounted into the backend
+container and uvicorn is started with `--reload`, and the frontend source directory is bind-mounted into the frontend
+container (via an anonymous volume that keeps the image's `node_modules`) with the Vite dev server running hot module
+reload.
+
+To run only one of the services, use the service name as the compose target, e.g. `docker compose up --build backend`
+or `docker compose up --build frontend` (see the backend / frontend READMEs for details).
+
 ### Backend
 
 ```bash
