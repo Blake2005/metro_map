@@ -1,6 +1,7 @@
 import asyncio, time
 import logging
 from datetime import datetime, timezone
+from fastapi import FastAPI
 
 import httpx
 from google.transit import gtfs_realtime_pb2
@@ -20,21 +21,21 @@ log = logging.getLogger("poller")
 #        vehicles - list of validated vehicle models to persist (duplicates are ignored).
 # Output: None - commits on success and rolls back and re-raises on failure.
 
-def insert_positions_db(cursor: sqlite3.Cursor, ts: int, rid: int, vehicles: list[dict]):
-    rows = [
-        (ts, v.trip_id, rid, v.latitude, v.longitude, v.speed, v.location_time)
-        for v in vehicles
-    ]
-    try:  # one transaction per poll, commits on exit
-        cursor.executemany(
-            "INSERT OR IGNORE INTO positions "
-            "(ts, trip_id, route_id, latitude, longitude, speed, location_time) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)", rows
-        )
-        cursor.connection.commit()
-    except Exception:
-        cursor.connection.rollback()
-        raise
+# def insert_positions_db(cursor: sqlite3.Cursor, ts: int, rid: int, vehicles: list[dict]):
+#     rows = [
+#         (ts, v.trip_id, rid, v.latitude, v.longitude, v.speed, v.location_time)
+#         for v in vehicles
+#     ]
+#     try:  # one transaction per poll, commits on exit
+#         cursor.executemany(
+#             "INSERT OR IGNORE INTO positions "
+#             "(ts, trip_id, route_id, latitude, longitude, speed, location_time) "
+#             "VALUES (?, ?, ?, ?, ?, ?, ?)", rows
+#         )
+#         cursor.connection.commit()
+#     except Exception:
+#         cursor.connection.rollback()
+#         raise
 
 # Fetches the vehicle positions for a single route from the Metro Transit API and refreshes the snapshot.
 # Input:  client - httpx async client used to perform the GET request.
@@ -90,8 +91,8 @@ async def poll_forever(app: FastAPI) -> None:
                 results = await asyncio.gather(*tasks)
 
                 ts = int(time.time())
-                for result in results:
-                    await asyncio.to_thread(insert_positions_db, app.state.db, ts, result[0], result[1])
+                # for result in results:
+                #     await asyncio.to_thread(insert_positions_db, app.state.db, ts, result[0], result[1])
 
             except Exception:
                 log.exception("Unexpected error in poll iteration")

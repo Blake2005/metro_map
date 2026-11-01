@@ -1,0 +1,25 @@
+services:
+  backend:
+    build: ./metro_map_backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./metro_map_backend:/app
+    # env_file:
+    #   - ./metro_map_backend/.env   # uncomment if the backend reads secrets/API keys from .env
+    restart: unless-stopped
+
+  frontend:
+    build: ./metro_map_frontend
+    command: npm run dev -- --host
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./metro_map_frontend:/app
+      - /app/node_modules   # anonymous volume so the host mount doesn't hide the image's node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true   # only needed if HMR doesn't pick up changes (macOS/Windows)
+    depends_on:
+      - backend
+    restart: unless-stopped

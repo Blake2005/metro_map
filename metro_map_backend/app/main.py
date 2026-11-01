@@ -18,23 +18,23 @@ logging.basicConfig(level=logging.INFO)
 # Input:  None - the database location is taken from the app settings (settings.db_path).
 # Output: A sqlite cursor on a new connection to the positions database.
 
-def init_db():
-    connection = sqlite3.connect(settings.db_path, check_same_thread=False)
-    cursor = connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")    # readers don't block the writer
-    cursor.execute("PRAGMA synchronous=NORMAL")  # fine with WAL, much faster writes
-    cursor.executescript("""
-        CREATE TABLE IF NOT EXISTS positions (
-            id INTEGER PRIMARY KEY, ts INTEGER NOT NULL, trip_id INTEGER NOT NULL,
-            route_id INTEGER NOT NULL, latitude REAL NOT NULL, longitude REAL NOT NULL,
-            speed REAL NOT NULL, location_time INTEGER NOT NULL, UNIQUE (trip_id, location_time)
-        );
-        CREATE INDEX IF NOT EXISTS idx_positions_ts ON positions (ts); 
-        CREATE INDEX IF NOT EXISTS idx_positions_route_overtime ON positions (route_id, location_time); 
-    """)
-    # idx_positions_ts creates a lookup table (B tree) of positions by time of insertion
-    # idx_positions_route_overtime creates a lookup table of positions by route and time of location
-    return cursor
+# def init_db():
+#     connection = sqlite3.connect(settings.db_path, check_same_thread=False)
+#     cursor = connection.cursor()
+#     cursor.execute("PRAGMA journal_mode=WAL")    # readers don't block the writer
+#     cursor.execute("PRAGMA synchronous=NORMAL")  # fine with WAL, much faster writes
+#     cursor.executescript("""
+#         CREATE TABLE IF NOT EXISTS positions (
+#             id INTEGER PRIMARY KEY, ts INTEGER NOT NULL, trip_id INTEGER NOT NULL,
+#             route_id INTEGER NOT NULL, latitude REAL NOT NULL, longitude REAL NOT NULL,
+#             speed REAL NOT NULL, location_time INTEGER NOT NULL, UNIQUE (trip_id, location_time)
+#         );
+#         CREATE INDEX IF NOT EXISTS idx_positions_ts ON positions (ts); 
+#         CREATE INDEX IF NOT EXISTS idx_positions_route_overtime ON positions (route_id, location_time); 
+#     """)
+#     # idx_positions_ts creates a lookup table (B tree) of positions by time of insertion
+#     # idx_positions_route_overtime creates a lookup table of positions by route and time of location
+#     return cursor
 
 # Reports the outcome of the background poller task, logging instead of letting the exception go unhandled.
 # Input:  task - the asyncio task that was created for the poller loop.
@@ -54,7 +54,7 @@ def _report_task_failure(task: asyncio.Task) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.db = init_db()
+    # app.state.db = init_db()
     app.state.routes_tracked = RoutesTracked(settings.routes_tracked)
 
     await asyncio.to_thread(load_static_data, settings.static_db_path, settings.gtfs_static_url)  # your remotezip extract
@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
     task.add_done_callback(_report_task_failure)
     yield
     task.cancel()
-    app.state.db.close()
+    # app.state.db.close()
 
 
 app = FastAPI(lifespan=lifespan)
