@@ -8,6 +8,6 @@ export default defineConfig({
   },
   server: {
     host: true, // lets you reach the dev server from another machine
-    proxy: { "/api": "http://100.87.56.104:8000" }, // your FastAPI server
+    proxy: { "/api": "http://backend:8000" }, // your FastAPI server
   },
 });
