@@ -8,52 +8,59 @@ state to the frontend through a small REST API.
 ## Overview
 
 The backend is a Python package (`app/`) that runs on FastAPI with Uvicorn as the ASGI server. On startup
-it prepares the SQLite database, downloads and extracts the static GTFS data, builds GeoJSON line shapes
-for the tracked routes and then starts a background polling task that runs forever. The polling task
-periodically fetches the vehicle positions of every tracked route, validates them and stores them both in
-the in-memory snapshot store and in the SQLite database.
+it initializes the tracked-routes state, downloads and extracts static GTFS data, builds GeoJSON line shapes
+for the tracked routes (and loads route metadata), and then starts a background polling task. The poller
+periodically fetches vehicle positions for each tracked route, validates them, and updates an in-memory
+snapshot store that is served to the frontend via REST endpoints.
+
+> Note: the codebase contains commented-out SQLite persistence helpers (`init_db`/position inserts), but
+> vehicle position persistence to SQLite is not currently active; the running behavior uses in-memory
+> snapshots.
 
 ## Architecture
 
 ### Components
 
-- `app/main.py` – The FastAPI application. Contains the lifespan handler (database init, static data
-  load, poller task) and all REST endpoints.
+- `app/main.py` – The FastAPI application. Contains the lifespan handler (tracked routes, static data/shape
+  loading, poller task) and all REST endpoints.
 - `app/config.py` – Pydantic settings object (`Settings`) that reads configuration from environment
   variables / a `.env` file, plus the `ROUTES` mapping of known transit route ids to display names.
 - `app/models.py` – Pydantic models: `Vehicle` (position of a single vehicle), `Train` (vehicle plus
   direction of travel) and `RouteInfo` (vehicles of one route plus transit mode and update timestamp).
-- `app/store.py` – In-memory snapshot store (`snapshots`) keyed by route name.
+- `app/store.py` – In-memory snapshot store (`snapshots`) keyed by route id (`dict[int, RouteInfo]`).
 - `app/poller.py` – The polling loop (`poll_forever`) that fetches positions per tracked route
-  (`fetch_route`) and persists them into SQLite (`insert_positions_db`).
-- `app/static_loader.py` – Loads the static GTFS data from a remote zip (`load_static_data`) and builds
-  the GeoJSON route line shapes (`load_route_shapes`).
+  (`fetch_route`) and updates the in-memory snapshot store.
+- `app/static_loader.py` – Loads static GTFS data from a remote zip (`load_static_data`, extracting
+  `trips.txt`, `shapes.txt`, and `routes.txt`), builds GeoJSON route line shapes (`load_route_shapes`), and
+  reads route id/name metadata (`get_all_route_ids`).
 - `app/active_routes.py` – In-memory tracked-routes registry (`RoutesTracked`) plus the pydantic request
   schemas (`RouteListSchema`, `RouteSchema`) used by the tracked-route endpoints.
 
 ### Data flow
 
 1. On application startup (`lifespan`):
-   - `init_db` creates the SQLite `positions` table (WAL journal mode, `synchronous=NORMAL`) with
-     indexes for time-based and route/time-based lookups.
    - `RoutesTracked` is initialized with the configured tracked routes.
-   - `load_static_data` downloads the GTFS zip from `GTFS_STATIC_URL` and extracts `trips.txt` and
-     `shapes.txt`.
-   - `load_route_shapes` turns the trips/shapes into a GeoJSON `FeatureCollection` of line shapes.
+   - `load_static_data` downloads the GTFS zip from `GTFS_STATIC_URL` and extracts `trips.txt`,
+     `shapes.txt`, and `routes.txt` into the static data directory.
+   - `load_route_shapes` turns the trips/shapes into a GeoJSON `FeatureCollection` of line shapes for the
+     tracked routes.
+   - `get_all_route_ids` loads route id → display name mappings from `routes.txt`.
    - The background task created by `poll_forever` starts polling the tracked routes.
 2. While running, the poller fetches `GET {metro_api_url}{route_id}` for every tracked route, validates
    the returned vehicle entries into pydantic `Vehicle` models (skipping invalid entries), builds a
-   `RouteInfo` (including the transit mode) and stores it in the snapshot store.
-3. Every poll cycle writes the fetched positions into the SQLite `positions` table via a single
-   transaction per cycle.
+   `RouteInfo` (including the transit mode), and stores it in the in-memory snapshot store.
+3. When tracked routes are added/removed/set via the API, the backend updates the tracked-routes state,
+   reloads route shapes, and (on removal) removes the route’s snapshot entry.
 4. The REST endpoints read from the in-memory store / app state and serve the data to the frontend.
 
 ### REST API
 
 | Method | Path | Description |
 | --- | --- | --- |
-| GET | `/api/trains` | Returns the latest vehicle snapshots keyed by route name. |
+| GET | `/api/health` | Returns a simple health/status response. |
+| GET | `/api/trains` | Returns the latest vehicle snapshots keyed by route id (`dict[int, RouteInfo]`). |
 | GET | `/api/route_shapes` | Returns the GeoJSON FeatureCollection of route line shapes for the tracked routes. |
+| GET | `/api/all_routes` | Returns all known route ids mapped to display names (from static GTFS routes data). |
 | GET | `/api/tracked_routes` | Returns the currently tracked routes as a mapping of route id to route name. |
 | POST | `/api/set_tracked_routes` | Replaces the full set of tracked routes. Body: `{"routes": [901, 902, ...]}`. |
 | POST | `/api/remove_tracked_route` | Removes a single tracked route. Body: `{"route": 901}`. |
@@ -73,8 +80,9 @@ the in-memory snapshot store and in the SQLite database.
    (`source .venv/bin/activate` on Linux / macOS, `source .venv/Scripts/activate` on Windows).
 3. Install the Python dependencies: `pip install -r requirements.txt`
 4. Copy the example environment file to `.env` and adjust it if needed: `cp .env.example .env`.
-5. Make sure the directories for the SQLite database and the static GTFS data exist or can be created
-   (the configured paths are `/var/lib/trainmap/vehicles.db` and `/var/lib/trainmap/static_data/gtfs`).
+5. Make sure the directory for the static GTFS data exists or can be created (configured by
+   `STATIC_DB_PATH`, default `/var/lib/trainmap/static_data/gtfs`). `DB_PATH` is still present in settings,
+   but SQLite vehicle persistence is not currently active in the running code.
 
 ### Configuration
 
@@ -86,7 +94,8 @@ the required keys and example values):
 - `GTFS_URL` – base url of the GTFS realtime vehicle positions feed
 - `GTFS_STATIC_URL` – url of the GTFS zip containing trips and shapes (`https://svc.metrotransit.org/mtgtfs/gtfs.zip`)
 - `ROUTES_TRACKED` – list of route ids that are polled and displayed (default: `[901, 902, 903, 904, 905]`)
-- `DB_PATH` – sqlite file path for the vehicle positions (default: `/var/lib/trainmap/vehicles.db`)
+- `DB_PATH` – configured SQLite file path setting (present in config; vehicle persistence to SQLite is not
+  currently active in the running code)
 - `STATIC_DB_PATH` – folder the extracted GTFS files land in (default: `/var/lib/trainmap/static_data/gtfs`)
 - `POLLING_INTERVAL` – seconds between poll cycles (default: `10.0`)
 - `REQUEST_TIMEOUT_SECS` – timeout for outbound API requests in seconds (default: `8.0`)

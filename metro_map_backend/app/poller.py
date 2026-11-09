@@ -37,11 +37,12 @@ log = logging.getLogger("poller")
 #         cursor.connection.rollback()
 #         raise
 
-# Fetches the vehicle positions for a single route from the Metro Transit API and refreshes the snapshot.
+# Fetches the vehicle positions for a single route from the Metro Transit API and refreshes the in-memory snapshot.
 # Input:  client - httpx async client used to perform the GET request.
 #        rid - transit route id to fetch positions for.
 #        base_url - base URL of the vehicle positions endpoint (e.g. .../nextrip/vehicles/).
-# Output: None - updates the in-memory snapshot for the route and returns (rid, vehicles).
+# Output: On success, updates snapshots[rid] with a RouteInfo and returns (rid, vehicles). Request/HTTP/JSON
+#         errors are logged; invalid vehicle entries are skipped during validation.
 
 async def fetch_route(client: httpx.AsyncClient, rid: int, base_url: str) -> None:
     try:

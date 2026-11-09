@@ -9,26 +9,30 @@ they're interested in.
 The web app consists of two parts:
 
 - **`metro_map_backend/`** – FastAPI backend that periodically polls the Metro Transit real-time vehicle
-  position API, stores the latest positions in SQLite and serves vehicle snapshots plus static route line
-  shapes over a small REST API.
-- **`metro_map_frontend/`** – React + Vite + MapLibre GL single-page app that renders the live map, the
-  vehicle markers and the tracked route lines, and lets users add or remove tracked routes.
+  position API, keeps the latest vehicle positions in an in-memory snapshot store, and serves vehicle
+  snapshots, static route line shapes, and tracked-route state over a small REST API.
+- **`metro_map_frontend/`** – React + Vite + MapLibre GL single-page app that renders the live map, vehicle
+  markers, and tracked route lines, and lets users add or remove tracked routes.
 
 ## Architecture
 
-1. The backend polls the Metro Transit vehicle positions API for the configured tracked routes
-   (`901`–`905`, the Blue/Green/Red/Orange/Gold lines) every few seconds.
-2. Vehicle positions are kept in an in-memory snapshot store and persisted to a local SQLite database; the
-   static GTFS route line shapes are loaded at startup and refreshed when tracked routes change.
-3. The frontend polls the backend for updates, renders vehicle icons and route lines on a MapLibre map, and
-   manages the tracked-route set via REST calls.
+1. The backend polls the Metro Transit vehicle positions API for the currently tracked routes on a fixed
+   interval (the initial tracked set is configured via settings/environment).
+2. Vehicle positions are stored in an in-memory snapshot store. Static GTFS data is loaded at startup to
+   build route line shapes (and route metadata); route line shapes are regenerated when tracked routes change.
+3. The frontend polls `/api/trains` for live vehicle updates, renders vehicle icons and route lines on a
+   MapLibre map, and manages the tracked-route set via REST calls. When a route is added or removed, the UI
+   triggers an immediate map refresh/removal so path and vehicle changes are reflected without waiting for the
+   next poll cycle.
 
 ### REST API (backend)
 
 | Method | Path | Description |
 | --- | --- | --- |
-| GET | `/api/trains` | Latest vehicle snapshots keyed by route name. |
-| GET | `/api/route_shapes` | GeoJSON FeatureCollection of route line shapes. |
+| GET | `/api/health` | Health/status check. |
+| GET | `/api/trains` | Latest vehicle snapshots keyed by route id (`dict[int, RouteInfo]`). |
+| GET | `/api/route_shapes` | GeoJSON FeatureCollection of route line shapes for tracked routes. |
+| GET | `/api/all_routes` | Mapping of all known route ids to display names (from static GTFS routes data). |
 | GET | `/api/tracked_routes` | Currently tracked routes (route id → name). |
 | POST | `/api/set_tracked_routes` | Replace the tracked route set. Body: `{"routes": [901, 902, ...]}`. |
 | POST | `/api/add_tracked_route` | Add a route. Body: `{"route": 901}`. |
@@ -91,8 +95,9 @@ npm install
 npm run dev
 ```
 
-The dev server runs at `http://localhost:5173` and proxies `/api` requests to the backend (by default at
-`http://100.87.56.104:8000`).
+The dev server runs at `http://localhost:5173` and proxies `/api` requests to the backend configured in
+`vite.config.js` (currently `http://backend:8000`, which matches the Docker Compose service name; adjust the
+proxy target if running the backend elsewhere).
 
 ## More info
 

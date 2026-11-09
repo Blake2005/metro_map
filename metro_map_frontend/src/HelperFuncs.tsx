@@ -1,6 +1,6 @@
-// Checks whether a user supplied string is a valid integer.
+// Checks whether a user-supplied string converts to an integer number.
 // Input:  userInput - string the user typed into the route input.
-// Output: boolean - true if the string converts to an integer, false otherwise.
+// Output: boolean - true if converting the string with Number() yields an integer value, false otherwise.
 
 export function isInteger(userInput: string) {
     const conversion: number = Number(userInput)

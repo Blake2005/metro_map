@@ -47,10 +47,10 @@ def _report_task_failure(task: asyncio.Task) -> None:
         )
 
 
-# FastAPI lifespan handler that opens the database, loads the static route data, starts the poller task
-# and tears the database down again when the application shuts down.
+# FastAPI lifespan handler that initializes tracked routes, loads static GTFS-derived data, and starts the poller task.
 # Input:  app - the FastAPI application instance whose lifespan is being managed.
-# Output: async context manager yielding the app state (database connection, tracked routes, route geojson).
+# Output: async context manager yielding after startup; populates app state (tracked routes, route shapes GeoJSON,
+#         all routes) and cancels the poller task on shutdown.
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

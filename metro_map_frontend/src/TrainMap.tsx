@@ -80,10 +80,10 @@ async function generateIcon(img: ImageBitmap | HTMLImageElement, color: string, 
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
 }
 
-// Convert backend JSON into GeoJSON. Note [lng, lat] order.
 // Converts the backend /api/trains response into a GeoJSON FeatureCollection of vehicle position points.
-// Input:  data - JSON object keyed by route name, each holding a RouteInfo with its vehicles.
-// Output: GeoJSON FeatureCollection of point features for the current vehicle positions.
+// Note: GeoJSON coordinates use [lng, lat] order.
+// Input:  data - JSON object keyed by route id, each value holding a RouteInfo snapshot with its vehicles.
+// Output: GeoJSON FeatureCollection of point features (properties include mode, route name, and route id).
 
 function toGeoJSON(data: JSON) {
   const features = [];

@@ -15,32 +15,38 @@ navbar. The map data is served by the FastAPI backend located in `metro_map_back
 ### Components
 
 - `src/main.jsx` – React entry point that renders the `App` component into the `#root` element.
-- `src/App.jsx` – Root component that composes the layout: navbar on top, map on the left, sidebar on
-  the right.
-- `src/Navbar.tsx` – Top navigation bar with the app title and placeholder links / button.
-- `src/Sidebar.tsx` – Sidebar that loads the currently tracked routes and renders the route add/remove UI.
-- `src/RouteInput.tsx` – Form to enter a numeric route id and add it via the backend.
-- `src/RouteList.tsx` – List of tracked routes with a delete button per route.
-- `src/TrainMap.tsx` – MapLibre map component: creates the map, adds the GeoJSON sources / layers for
-  route lines and vehicle icons, converts backend data into GeoJSON and polls the backend for updates.
-- `src/Constants.tsx` – Shared constants: MapLibre style url, polling interval, line width, icon offsets,
-  icon paths and per-route icon colors.
+- `src/App.jsx` – Root component that composes the layout (navbar, map, sidebar) and wires map refresh
+  callbacks between the sidebar and `TrainMap` via a ref/imperative handle.
+- `src/Navbar.tsx` – Top navigation bar with the app title.
+- `src/Sidebar.tsx` – Sidebar that loads the currently tracked routes, renders the add/remove UI, and
+  notifies the parent after route add/remove so the map can update.
+- `src/RouteInput.tsx` – Form to enter a numeric route id and add it via the backend; invokes a callback on
+  successful add.
+- `src/RouteList.tsx` – List of tracked routes with a delete button per route; delegates deletion via a
+  callback.
+- `src/TrainMap.tsx` – MapLibre map component: creates the map, adds GeoJSON sources/layers for route lines
+  and vehicle icons, polls `/api/trains` for live vehicle updates, loads/reloads route shapes from
+  `/api/route_shapes`, and exposes an imperative handle (`refreshVehicles`, `reloadRouteShapes`,
+  `removeRoute`) for parent-triggered updates.
+- `src/Constants.tsx` – Shared constants: MapLibre style URL, polling interval, line width, icon offsets,
+  icon paths, and per-route icon colors.
 - `src/HelperFuncs.tsx` – Small helper functions: `isInteger` (route id validation) and `getRandomColor`.
 - `src/assets/style.jsx` – MapLibre GL style object (OpenMapTiles based) used by the map.
-- `src/assets/` – Static images / svg icons used by the map and the app.
-- `*.css` – Plain CSS for the layout, navbar, sidebar and map pane.
+- `src/assets/` – Static images / SVG icons used by the map and the app.
+- `*.css` – Plain CSS for the layout, navbar, sidebar, and map pane.
 
 ### Data flow
 
 1. On mount, `TrainMap` creates a MapLibre map, adds the `trains` GeoJSON source (live vehicle points) and
-   the `route-lines` source (route polylines), then loads base icons and fetches the route shapes.
+   the `route-lines` source (route polylines), loads base icons, fetches route shapes, and starts polling.
 2. `TrainMap` polls `GET /api/trains` every `POLL_MS` (5 seconds) and pushes the converted GeoJSON feature
    collection into the `trains` source.
-3. The sidebar fetches `GET /api/tracked_routes` on mount, and `RouteInput` / `RouteList` add or remove
-   routes by calling the backend endpoints `POST /api/add_tracked_route` and
-   `POST /api/remove_tracked_route`.
-4. After a successful add, `RouteInput` notifies the sidebar through the `onRouteInput` callback so the
-   tracked routes list refreshes.
+3. The sidebar fetches `GET /api/tracked_routes` on mount. `RouteInput` adds routes via
+   `POST /api/add_tracked_route`, and `Sidebar` removes routes via `POST /api/remove_tracked_route`.
+4. After a successful add, `Sidebar` refreshes the tracked-routes list and triggers a map refresh so route
+   shapes/vehicles update immediately. After a successful removal, `Sidebar` refreshes the list and triggers
+   `TrainMap.removeRoute(...)` so the route path and vehicle markers are removed immediately (with a backend
+   refetch for consistency).
 
 ### Map details
 
@@ -70,7 +76,8 @@ npm run dev
 ```
 
 The dev server runs at `http://localhost:5173` and proxies `/api` requests to the backend configured in
-`vite.config.js` (default backend address `http://100.87.56.104:8000`).
+`vite.config.js` (currently `http://backend:8000`, which matches the Docker Compose service name; adjust the
+proxy target if running the backend elsewhere).
 
 ### Running with Docker
 
@@ -84,7 +91,7 @@ This builds and starts the backend and frontend containers defined in the root `
 dev server is then available at `http://localhost:5173` and proxies `/api` requests to the backend that the backend
 container serves at `http://localhost:8000`.
 
-When running through Docker Compose, make sure the `/api` proxy target in `vite.config.js` points at the backend
+When running through Docker Compose, the `/api` proxy target in `vite.config.js` should point at the backend
 service (e.g. `http://backend:8000`) so the frontend container can reach the backend container.
 
 ### Build

@@ -4,10 +4,10 @@ from collections import defaultdict
 
 from remotezip import RemoteZip
 
-# Downloads the GTFS zip from the remote url and extracts trips.txt and shapes.txt into the static data folder.
+# Downloads the GTFS zip from the remote url and extracts the static files used by the backend.
 # Input:  statics_path - directory the extracted files are written to.
 #        gtfs_url - remote url of the GTFS zip archive.
-# Output: None - extraction happens inside the remote zip context manager.
+# Output: None - extracts trips.txt, shapes.txt, and routes.txt into statics_path.
 
 def load_static_data(statics_path: str, gtfs_url: str):
 
@@ -53,6 +53,10 @@ def load_route_shapes(statics_path: str, rids: frozenset[int]):
         })
     return {"type": "FeatureCollection", "features": features}
 
+
+# Reads routes.txt and builds a mapping of all route ids to display names.
+# Input:  statics_path - directory that contains routes.txt.
+# Output: dict[int, str] - mapping of route id to a display name (route_long_name, falling back to route_desc).
 
 def get_all_route_ids(statics_path: str):
     rids = set()

@@ -27,10 +27,18 @@ export default function Sidebar({ onRoutesChanged, onRouteDeleted }: SidebarProp
         setRoutes(data);
     }, []);
 
+    // Refreshes the tracked routes list and notifies the parent after a route is added.
+    // Input:  None - uses the RouteInput success callback.
+    // Output: None - triggers a route list refresh and the optional map refresh callback.
+
     const handleRouteAdded = useCallback(() => {
         void fetchRoutes();
         onRoutesChanged?.();
     }, [fetchRoutes, onRoutesChanged]);
+
+    // Removes a tracked route through the backend and notifies the parent so the map can update.
+    // Input:  rid - route id (as a string) to remove from tracking.
+    // Output: Promise<void> - resolves after the request is handled; errors are caught and logged.
 
     const deleteRoute = useCallback(async (rid: string) => {
         if(!isInteger(rid)){
@@ -73,23 +81,4 @@ export default function Sidebar({ onRoutesChanged, onRouteDeleted }: SidebarProp
           <RouteList routes={routes} onRouteDeletion={deleteRoute}/>
         </aside>
     )
-
-    // State var 'routes'
-
-    // Function 1 (update state) useCallback 
-    // so that it doesn't rerender everytime
-    // sets routes
-
-    // useEffect calls Function1 on load
-    // (and whenever Function1 changes
-    // but it wont)
-
-    // Ele1 (state modifying input) takes in 
-    // function 1 and calls it on form 
-    // submission
-
-    // Ele2 (displays state)
-    // takes in state and displays it
-
-
 }

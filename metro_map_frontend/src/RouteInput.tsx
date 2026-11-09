@@ -3,15 +3,15 @@ import { isInteger } from './HelperFuncs';
 import './Sidebar.css';
 
 // Route input component that lets the user add a tracked transit route by entering its numeric id.
-// Input:  onRouteInput - callback that triggers a refresh of the tracked routes list after a successful add.
+// Input:  onRouteInput - callback invoked after a successful add (used to refresh the route list and notify the parent).
 // Output: JSX - form with a text input and an add button.
 
 export default function RouteInput({ onRouteInput }: {onRouteInput: Function})  {
     const [route_in, setRouteIn] = useState('');
 
-    // Validates the entered route id, sends it to the backend add endpoint and refreshes the routes list.
-    // Input:  None - reads the route_in state and uses the onRouteInput callback.
-    // Output: Promise<void> - resolves once the request completes, errors are caught and logged.
+    // Validates the entered route id, sends it to the backend add endpoint, clears the input, and notifies the parent.
+    // Input:  e - form submit event (default submission is prevented).
+    // Output: Promise<void> - resolves once the request completes; errors are caught and logged.
 
     async function addRoute(e: React.FormEvent<HTMLFormElement>){
         e.preventDefault();
