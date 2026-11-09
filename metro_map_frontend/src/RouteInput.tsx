@@ -42,6 +42,7 @@ export default function RouteInput({ onRouteInput }: {onRouteInput: Function})  
 
     return(
           <form onSubmit={addRoute}>
+            <div className='searchbar-explainer'>Enter route by id (i.e. 902). See routes.json for list of routes</div>
             <input
                 id="route-input"
                 type="text"
