@@ -1,6 +1,6 @@
 from .config import ROUTES
 from .models import RouteInfo
 
-snapshots: dict[str, RouteInfo] = {
-    name: RouteInfo(route = name, vehicles = [], transit_mode = None) for _, name in ROUTES.items() 
+snapshots: dict[int, RouteInfo] = {
+    rid: RouteInfo(route_name = name, vehicles = [], transit_mode = None) for rid, name in ROUTES.items() 
 }

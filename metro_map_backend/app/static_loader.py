@@ -15,6 +15,7 @@ def load_static_data(statics_path: str, gtfs_url: str):
 
         z.extract("trips.txt", path=statics_path)
         z.extract("shapes.txt", path=statics_path)
+        z.extract("routes.txt", path=statics_path)
 
 # Builds a GeoJSON FeatureCollection of route polylines (LineStrings) for the given tracked routes.
 # Input:  statics_path - directory that contains trips.txt and shapes.txt.
@@ -51,3 +52,19 @@ def load_route_shapes(statics_path: str, rids: frozenset[int]):
             },
         })
     return {"type": "FeatureCollection", "features": features}
+
+
+def get_all_route_ids(statics_path: str):
+    rids = set()
+    route_names: dict[int, str] = {}
+    with open(statics_path + "/routes.txt", newline='', encoding="utf-8-sig", mode='r') as csvfile:
+        for row in csv.DictReader(csvfile):
+            rid = int(row["route_id"])
+            if rid not in rids:
+                rids.add(rid)
+                route_name = str(row["route_long_name"])
+                if route_name == "" or route_name == " ":
+                    route_name =str(row["route_desc"])
+                route_names[rid] = route_name
+
+    return route_names

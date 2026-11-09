@@ -73,7 +73,7 @@ async def fetch_route(client: httpx.AsyncClient, rid: int, base_url: str) -> Non
     if((rid == 902) or (rid == 901)):
         transit_mode = "train"
 
-    snapshots[name] = RouteInfo(route=name, vehicles=vehicles, transit_mode=transit_mode, updated_at=now)
+    snapshots[rid] = RouteInfo(route_name=name, vehicles=vehicles, transit_mode=transit_mode, updated_at=now)
     return (rid, vehicles)
 
 # Continuously polls all tracked routes on a fixed interval and stores the latest positions.

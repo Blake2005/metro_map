@@ -8,7 +8,7 @@ from .models import RouteInfo
 from .poller import poll_forever
 from .store import snapshots
 from .config import settings, ROUTES
-from .static_loader import load_static_data, load_route_shapes
+from .static_loader import load_static_data, load_route_shapes, get_all_route_ids
 from .active_routes import RoutesTracked, RouteListSchema, RouteSchema
 
 logging.basicConfig(level=logging.INFO)
@@ -62,6 +62,10 @@ async def lifespan(app: FastAPI):
         load_route_shapes, settings.static_db_path, app.state.routes_tracked.getRoutes()
     )
 
+    app.state.all_routes = await asyncio.to_thread(
+        get_all_route_ids, settings.static_db_path
+    )
+
     task = asyncio.create_task(poll_forever(app))
     task.add_done_callback(_report_task_failure)
     yield
@@ -71,11 +75,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# API endpoint that returns the latest vehicle snapshots keyed by route name.
-# Input:  None - reads the in-memory snapshots store.
-# Output: dict[str, RouteInfo] - current vehicles per route, keyed by route name.
+@app.get("/api/health")
+async def send_status():
+    return {"status": "ok"}
 
-@app.get("/api/trains", response_model=dict[str, RouteInfo])
+# API endpoint that returns the latest vehicle snapshots keyed by route id.
+# Input:  None - reads the in-memory snapshots store.
+# Output: dict[int, RouteInfo] - current vehicles per route, keyed by route id.
+
+@app.get("/api/trains", response_model=dict[int, RouteInfo])
 async def get_vehicles():
     return snapshots
 
@@ -86,6 +94,10 @@ async def get_vehicles():
 @app.get("/api/route_shapes")
 async def get_route_shapes():
     return app.state.routes_geojson
+
+@app.get("/api/all_routes")
+async def get_all_routes():
+    return app.state.all_routes
 
 # API endpoint that returns the transit routes currently being tracked.
 # Input:  None - reads the in-memory tracked routes state.
@@ -106,6 +118,11 @@ async def get_tracked_routes():
 # Input:  input - RouteListSchema holding the new set of tracked route ids.
 # Output: None - updates the tracked routes and reloads the route shapes.
 
+# This endpoint is currently unused. If it were to be used in its current state,
+# there would be a delay between the call to the endpoint and the updating of 
+# our state variable snapshots. There is currently no function that can rerender
+# the entire state.
+
 @app.post("/api/set_tracked_routes")
 async def set_tracked_routes(input: RouteListSchema):
     app.state.routes_tracked.setRoutes(input.routes)
@@ -120,6 +137,7 @@ async def set_tracked_routes(input: RouteListSchema):
 @app.post("/api/remove_tracked_route")
 async def remove_tracked_route(input: RouteSchema):
     app.state.routes_tracked.removeRoute(input.route)
+    snapshots.pop(input.route)
     app.state.routes_geojson = await asyncio.to_thread(
         load_route_shapes, settings.static_db_path, app.state.routes_tracked.getRoutes()
     )

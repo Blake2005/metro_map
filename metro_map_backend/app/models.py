@@ -23,7 +23,7 @@ class Train(Vehicle):
 
 # Pydantic model describing the vehicle list and status of a single transit route.
 class RouteInfo(BaseModel):
-    route: str
+    route_name: str
     vehicles: list[Vehicle]
     transit_mode: str | None = None # None until first fetch
     updated_at: datetime | None = None # None until first fetch
