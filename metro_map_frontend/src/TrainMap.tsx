@@ -1,8 +1,14 @@
-import { useEffect, useRef } from "react";
-import { type GeoJSONSource, Map } from "maplibre-gl";
-import { STYLE, POLL_MS, LINE_WIDTH, OFFSET_PIXELS, ICON_COLORS } from "./Constants";
+import { type Ref, useCallback, useEffect, useImperativeHandle, useRef } from "react";
+import { type FeatureCollection, type GeoJSONSource, Map } from "maplibre-gl";
+import { STYLE, POLL_MS, LINE_WIDTH, ICON_COLORS } from "./Constants";
 // import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+
+export type TrainMapHandle = {
+  refreshVehicles: () => Promise<void>;
+  reloadRouteShapes: () => Promise<void>;
+  removeRoute: (rid: string) => Promise<void>;
+};
 
 
 
@@ -12,13 +18,15 @@ const baseIcons: Record<string, ImageBitmap | HTMLImageElement> = {};
 // Input:  map - MapLibre map instance that loads the images into.
 // Output: Promise<void> - resolves once both base icons are loaded.
 
-async function loadBaseIcons(map: Map) {
+async function loadBaseIcons(map: Map|null) {
   const [train, bus] = await Promise.all([
-    map.loadImage("/icons/train.png"),
-    map.loadImage("/icons/bus.png"),
+    map?.loadImage("/icons/train.png"),
+    map?.loadImage("/icons/bus.png"),
   ]);
-  baseIcons.train = train.data;
-  baseIcons.bus = bus.data;
+  if(train != undefined && bus != undefined){
+    baseIcons.train = train.data;
+    baseIcons.bus = bus.data;
+  }
 }
 
 // Tints a loaded icon image with the given color using an offscreen canvas.
@@ -79,12 +87,12 @@ async function generateIcon(img: ImageBitmap | HTMLImageElement, color: string, 
 
 function toGeoJSON(data: JSON) {
   const features = [];
-  for (const [route, snap] of Object.entries(data)) {
+  for (const [rid, snap] of Object.entries(data)) {
     for (const t of snap.vehicles) {
       features.push({
         type: "Feature",
         geometry: { type: "Point", coordinates: [t.longitude, t.latitude] },
-        properties: { mode: snap.transit_mode, route: route }, // add direction later
+        properties: { mode: snap.transit_mode, route_name: snap.route, rid: rid }, // add direction later
       });
     }
   }
@@ -92,11 +100,98 @@ function toGeoJSON(data: JSON) {
 }
 
 // MapLibre map component that renders the tracked transit lines and the live vehicle markers.
-// Input:  None - reads the backend for route shapes and vehicle positions.
+// Input:  ref - imperative handle used by the parent to refresh or remove routes on state changes.
 // Output: JSX - full screen map container element.
 
-export default function TrainMap() {
-  const containerRef = useRef(null);
+export default function TrainMap({ ref }: { ref: Ref<TrainMapHandle> }) {
+
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<Map | null>(null);
+  const trainsDataRef = useRef<FeatureCollection>({ type: "FeatureCollection", features: [] });
+  const routeLinesDataRef = useRef<FeatureCollection>({ type: "FeatureCollection", features: [] });
+
+  // Fetches the current vehicle snapshots and pushes them into the map source.
+  // Input:  None - uses the /api/trains endpoint.
+  // Output: Promise<void> - resolves once the source data was updated, errors are logged.
+
+  const refreshVehicles = useCallback(async () => {
+    try {
+      const res = await fetch("/api/trains");
+      const data = await res.json();
+      const geojson = toGeoJSON(data) as FeatureCollection;
+      trainsDataRef.current = geojson;
+      mapRef.current?.getSource<GeoJSONSource>("trains")?.setData(geojson);
+    } catch (err) {
+      console.error("Failed to fetch trains", err);
+    }
+  }, []);
+
+  // Fetches the GeoJSON route line shapes and pushes them into the map source.
+  // Input:  None - uses the /api/route_shapes endpoint.
+  // Output: Promise<void> - resolves once the source data was updated, errors are logged.
+
+  const reloadRouteShapes = useCallback(async () => {
+    try {
+      const res = await fetch("/api/route_shapes");
+      const data = (await res.json()) as FeatureCollection;
+      routeLinesDataRef.current = data;
+      mapRef.current?.getSource<GeoJSONSource>("route-lines")?.setData(data); // data is already formatted
+    } catch (err) {
+      console.error("Failed to fetch route shapes", err);
+    }
+  }, []);
+
+  // Removes generated marker images for a route from the map style cache.
+  // Input:  rid - route id whose marker images ("rid|mode") should be removed.
+  // Output: None - removes matching images when they exist.
+
+  const removeRouteIcons = useCallback((rid: string) => {
+    const allImages = mapRef.current?.listImages();
+    const markerRegex = new RegExp(`^${rid}\\|`);
+
+    if (allImages != undefined) {
+      const matchingImages = allImages.filter((id) => markerRegex.test(id));
+      for (const imageName of matchingImages) {
+        mapRef.current?.removeImage(imageName);
+      }
+    }
+  }, []);
+
+  // Optimistically removes a route's path and vehicle markers from the map, then refetches backend state.
+  // Input:  rid - route id to remove from the rendered sources.
+  // Output: Promise<void> - resolves once the map sources have been refreshed.
+
+  const removeRoute = useCallback(async (rid: string) => {
+    const ridStr = String(rid);
+
+    const filteredRouteLines = {
+      ...routeLinesDataRef.current,
+      features: routeLinesDataRef.current.features.filter(
+        (feature) => String((feature.properties as Record<string, unknown> | null)?.route_id) !== ridStr
+      ),
+    } as FeatureCollection;
+    
+    routeLinesDataRef.current = filteredRouteLines;
+    mapRef.current?.getSource<GeoJSONSource>("route-lines")?.setData(filteredRouteLines);
+
+    const filteredTrains = {
+      ...trainsDataRef.current,
+      features: trainsDataRef.current.features.filter(
+        (feature) => String((feature.properties as Record<string, unknown> | null)?.rid) !== ridStr
+      ),
+    } as FeatureCollection;
+    trainsDataRef.current = filteredTrains;
+    mapRef.current?.getSource<GeoJSONSource>("trains")?.setData(filteredTrains);
+
+    removeRouteIcons(ridStr);
+    await Promise.all([reloadRouteShapes(), refreshVehicles()]);
+  }, [refreshVehicles, reloadRouteShapes, removeRouteIcons]);
+
+  useImperativeHandle(ref, () => ({
+    refreshVehicles,
+    reloadRouteShapes,
+    removeRoute,
+  }), [refreshVehicles, reloadRouteShapes, removeRoute]);
 
   // Sets up the map, its sources and layers and starts polling for vehicle positions on mount.
   // Input:  None - runs once when the component mounts.
@@ -109,86 +204,60 @@ export default function TrainMap() {
     const container = containerRef.current;
     if(!container) return;
 
-    const map = new Map({
+    mapRef.current = new Map({
       container: container,
       style: STYLE,
       center: [-93.20, 44.94], // [lng, lat]: set this to your city
       zoom: 11,
     });
+    if(mapRef.current == null) return;
+
     let timer: ReturnType<typeof setInterval> | undefined;
-
-    // Fetches the current vehicle snapshots and pushes them into the map source.
-    // Input:  None - uses the /api/trains endpoint.
-    // Output: Promise<void> - resolves once the source data was updated, errors are logged.
-
-    async function refresh() {
-      try {
-        const res = await fetch("/api/trains");
-        const data = await res.json();
-        map.getSource<GeoJSONSource>("trains")?.setData(toGeoJSON(data));
-      } catch (err) {
-        console.error("Failed to fetch trains", err);
-      }
-    }
-
-    // Fetches the GeoJSON route line shapes and pushes them into the map source.
-    // Input:  None - uses the /api/route_shapes endpoint.
-    // Output: Promise<void> - resolves once the source data was updated, errors are logged.
-
-    async function load_routes() {
-      try {
-        const res = await fetch("/api/route_shapes");
-        const data = await res.json();
-        map.getSource<GeoJSONSource>("route-lines")?.setData(data); // data is already formatted
-      } catch (err) {
-        console.error("Failed to fetch route shapes", err);
-      }
-    }
 
     // Generates and registers a route colored icon for a vehicle mode and route that is missing from the style.
     // Input:  e - maplibre style imagemissing event holding the icon id ("mode|route").
     // Output: None - adds the generated image to the map when the base icon and color are available.
 
-    map.on("styleimagemissing", async (e) => {
-      const [mode, route] = e.id.split("|");
+    mapRef.current?.on("styleimagemissing", async (e) => {
+      const [rid, mode] = e.id.split("|");
       const base = baseIcons[mode];
-      const color = ICON_COLORS[route] || ICON_COLORS["DEFAULT"];
-      if (!base || !color || map.hasImage(e.id)) return;
+      const color = ICON_COLORS[rid] || ICON_COLORS["DEFAULT"];
+      if (!base || !color || mapRef.current?.hasImage(e.id)) return;
       const icon = await generateIcon(base, color, 150);
-      map.addImage(e.id, icon);
+      mapRef.current?.addImage(e.id, icon);
     });
 
     // Adds the map sources and layers for the route lines and vehicle icons and starts the initial data loads.
     // Input:  None - uses the map instance and the shared constants.
     // Output: Promise<void> - resolves once the initial loads finished.
 
-    map.on("load", async () => {
-      await loadBaseIcons(map);
+    mapRef.current?.on("load", async () => {
+      await loadBaseIcons(mapRef.current);
 
-      if (map.getLayer('poi_r1')) {
-        map.setLayoutProperty('poi_r1', 'visibility', 'none');
+      if (mapRef.current?.getLayer('poi_r1')) {
+        mapRef.current?.setLayoutProperty('poi_r1', 'visibility', 'none');
       }
 
-      if (map.getLayer('poi_r7')) {
-        map.setLayoutProperty('poi_r7', 'visibility', 'none');
+      if (mapRef.current?.getLayer('poi_r7')) {
+        mapRef.current?.setLayoutProperty('poi_r7', 'visibility', 'none');
       }
 
-      if (map.getLayer('poi_r20')) {
-        map.setLayoutProperty('poi_r20', 'visibility', 'none');
+      if (mapRef.current?.getLayer('poi_r20')) {
+        mapRef.current?.setLayoutProperty('poi_r20', 'visibility', 'none');
       }
 
-      const layers = map.getStyle().layers;
-      console.log(layers);
+      // const layers = mapRef.current?.getStyle().layers;
+      // console.log(layers);
 
-      map.addSource("trains", {
+      mapRef.current?.addSource("trains", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] }
       });
-      map.addSource("route-lines", {
+      mapRef.current?.addSource("route-lines", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] }
       });
-      map.addLayer({
+      mapRef.current?.addLayer({
         id: "route-lines",
         type: "line",
         source: "route-lines",
@@ -212,13 +281,13 @@ export default function TrainMap() {
           ],
         },
       });
-      map.addLayer({
+      mapRef.current?.addLayer({
         id: "trains",
         type: "symbol",
         source: "trains",
         layout: {
           "icon-image": ["concat",
-            ["get", "mode"], "|", ["get", "route"]
+            ["get", "rid"],"|",["get", "mode"]
           ],
           "icon-size": [
             "interpolate", ["linear"], ["zoom"],
@@ -244,17 +313,18 @@ export default function TrainMap() {
           // ],
         },
       });
-      refresh();
-      timer = setInterval(refresh, POLL_MS);
-      load_routes();
+      void refreshVehicles();
+      timer = setInterval(refreshVehicles, POLL_MS);
+      void reloadRouteShapes();
     });
 
     // Cleans up the polling interval and removes the map when the component unmounts.
     return () => {
       clearInterval(timer);
-      map.remove();
+      mapRef.current?.remove();
+      mapRef.current = null;
     };
-  }, []);
+  }, [refreshVehicles, reloadRouteShapes]);
 
   return <div ref={containerRef} style={{ width: "100vw", height: "100vh" }} />;
 }

@@ -1,13 +1,20 @@
 import {useState, useEffect, useCallback} from "react";
+import { isInteger } from './HelperFuncs';
 import './Sidebar.css';
 import RouteInput from './RouteInput';
 import RouteList from './RouteList';
 
 // Sidebar component that loads the tracked routes and renders the add input and the route list.
-// Input:  None - fetches the tracked routes from the backend.
+// Input:  onRoutesChanged - callback invoked after a route is added so the map can refresh.
+//        onRouteDeleted - callback invoked after a route is deleted so the map can remove it immediately.
 // Output: JSX - aside containing the route input and the tracked route list.
 
-export default function Sidebar()  {
+type SidebarProps = {
+    onRoutesChanged?: () => void;
+    onRouteDeleted?: (rid: string) => void;
+};
+
+export default function Sidebar({ onRoutesChanged, onRouteDeleted }: SidebarProps)  {
     const [routes, setRoutes] = useState({});
 
     // Fetches the currently tracked routes from the backend and stores them in state.
@@ -20,6 +27,38 @@ export default function Sidebar()  {
         setRoutes(data);
     }, []);
 
+    const handleRouteAdded = useCallback(() => {
+        void fetchRoutes();
+        onRoutesChanged?.();
+    }, [fetchRoutes, onRoutesChanged]);
+
+    const deleteRoute = useCallback(async (rid: string) => {
+        if(!isInteger(rid)){
+            console.log("Invalid Input");
+            return;
+        }
+
+        const requestOptions = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json' // Signals the server what data format to expect
+            },
+            body: JSON.stringify({
+                route: rid,
+            })
+        };
+
+        try {
+            await fetch('/api/remove_tracked_route', requestOptions);
+        } catch (err) {
+            console.error("Failed to remove route", err);
+            return;
+        }
+
+        void fetchRoutes();
+        onRouteDeleted?.(rid);
+    }, [fetchRoutes, onRouteDeleted]);
+
     // Loads the tracked routes from the backend when the component mounts.
     // Initial load
     useEffect(() => {
@@ -28,10 +67,10 @@ export default function Sidebar()  {
 
     return(
          <aside className="sidebar">
-          <RouteInput onRouteInput={fetchRoutes} />
+          <RouteInput onRouteInput={handleRouteAdded} />
 
           <h2 className="sidebar-heading">Routes</h2>
-          <RouteList routes={routes} />
+          <RouteList routes={routes} onRouteDeletion={deleteRoute}/>
         </aside>
     )
 

@@ -7,15 +7,16 @@ import './Sidebar.css';
 // Output: JSX - form with a text input and an add button.
 
 export default function RouteInput({ onRouteInput }: {onRouteInput: Function})  {
-    const [routeid, setRouteid] = useState('');
+    const [route_in, setRouteIn] = useState('');
 
     // Validates the entered route id, sends it to the backend add endpoint and refreshes the routes list.
-    // Input:  None - reads the routeid state and uses the onRouteInput callback.
+    // Input:  None - reads the route_in state and uses the onRouteInput callback.
     // Output: Promise<void> - resolves once the request completes, errors are caught and logged.
 
-    async function addRoute(){
+    async function addRoute(e: React.FormEvent<HTMLFormElement>){
+        e.preventDefault();
 
-        if(!isInteger(routeid)){
+        if(!isInteger(route_in)){
             console.log("Invalid Input");
             return;
         }
@@ -26,12 +27,13 @@ export default function RouteInput({ onRouteInput }: {onRouteInput: Function})  
                 'Content-Type': 'application/json' // Signals the server what data format to expect
             },
             body: JSON.stringify({
-                route: routeid,
+                route: route_in,
             })
         };
 
         try {
             await fetch('/api/add_tracked_route', requestOptions);
+            setRouteIn("");
             onRouteInput();
         } catch (err) {
             console.error("Failed to add route", err);
@@ -43,8 +45,8 @@ export default function RouteInput({ onRouteInput }: {onRouteInput: Function})  
             <input
                 id="route-input"
                 type="text"
-                value={routeid}
-                onChange={(e) => setRouteid(e.target.value)} // Update state on every keystroke
+                value={route_in}
+                onChange={(e) => setRouteIn(e.target.value)} // Update state on every keystroke
                 required
                 className="sidebar-input"
                 placeholder="Search routes..."

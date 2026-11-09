@@ -12,10 +12,10 @@ export const ICONS = {
 };
 
 export const ICON_COLORS: Record<string, string> = {
-  "METRO_BLUE_LINE": "#1f77b4",
-  "METRO_GREEN_LINE": "#00b012",
-  "METRO_GOLD_LINE": "#ada700",
-  "METRO_ORANGE_LINE": "#ff6f08",
-  "METRO_RED_LINE": "#c01300",
+  "901": "#1f77b4",
+  "902": "#00b012",
+  "905": "#ada700",
+  "904": "#ff6f08",
+  "903": "#c01300",
   "DEFAULT": "#ff96ed", // fallback
 }
